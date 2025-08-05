@@ -47,7 +47,7 @@ python mol-to-lammps_datafile.py ./molecules/
 
 1. Clone this repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/sahmed73/CompChem_Converters.git
    cd CompChem_Converters
    ```
 
