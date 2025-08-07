@@ -81,7 +81,8 @@ class MOLToLAMMPS:
                 'x': x,
                 'y': y,
                 'z': z,
-                'charge': 0.0  # Default charge
+                'charge': 0.0,  # Default charge
+                'mol_id': 1  # Temporary, will be reassigned by connectivity
             })
             
         # Parse bonds
@@ -146,6 +147,7 @@ class MOLToLAMMPS:
             })
         
         self._calculate_box_bounds()
+        self._assign_molecule_ids()
         return True
     
     def _read_v3000_format(self, lines):
@@ -227,7 +229,8 @@ class MOLToLAMMPS:
                     'x': x,
                     'y': y,
                     'z': z,
-                    'charge': 0.0
+                    'charge': 0.0,
+                    'mol_id': 1  # Temporary, will be reassigned by connectivity
                 })
         
         # Parse bonds
@@ -272,6 +275,7 @@ class MOLToLAMMPS:
         
         print(f"Successfully parsed {len(self.atoms)} atoms and {len(self.bonds)} bonds")
         self._calculate_box_bounds()
+        self._assign_molecule_ids()
         return True
     
     def _calculate_box_bounds(self):
@@ -290,6 +294,60 @@ class MOLToLAMMPS:
                 'zlo': min(zs) - padding,
                 'zhi': max(zs) + padding
             }
+        
+    def _assign_molecule_ids(self):
+        """Assign molecule IDs based on bond connectivity"""
+        from collections import deque
+        
+        # Build adjacency list for bond connectivity
+        adjacency = {}
+        for atom in self.atoms:
+            adjacency[atom['id']] = set()
+        
+        for bond in self.bonds:
+            atom1, atom2 = bond['atom1'], bond['atom2']
+            adjacency[atom1].add(atom2)
+            adjacency[atom2].add(atom1)
+        
+        # Find connected components (molecules) using BFS
+        visited = set()
+        molecule_id = 1
+        
+        for atom in self.atoms:
+            atom_id = atom['id']
+            if atom_id not in visited:
+                # Start a new molecule
+                queue = deque([atom_id])
+                visited.add(atom_id)
+                molecule_atoms = []
+                
+                # BFS to find all connected atoms
+                while queue:
+                    current_atom = queue.popleft()
+                    molecule_atoms.append(current_atom)
+                    
+                    # Add all bonded neighbors
+                    for neighbor in adjacency[current_atom]:
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+                
+                # Assign molecule ID to all atoms in this connected component
+                for atom in self.atoms:
+                    if atom['id'] in molecule_atoms:
+                        atom['mol_id'] = molecule_id
+                
+                molecule_id += 1
+        
+        # Print molecule assignment summary
+        mol_counts = {}
+        for atom in self.atoms:
+            mol_id = atom['mol_id']
+            mol_counts[mol_id] = mol_counts.get(mol_id, 0) + 1
+        
+        print(f"Detected {len(mol_counts)} separate molecules:")
+        for mol_id, count in sorted(mol_counts.items()):
+            print(f"  Molecule {mol_id}: {count} atoms")
         
     def write_lammps_data(self, filename):
         """Write LAMMPS data file with proper formatting for OVITO compatibility"""
@@ -344,7 +402,7 @@ class MOLToLAMMPS:
                 f.write("Atoms  # full\n\n")
                 for atom in self.atoms:
                     # Format: atom-ID molecule-ID atom-type charge x y z
-                    mol_id = 1  # Default molecule ID (can be modified if needed)
+                    mol_id = atom['mol_id']  # Use calculated molecule ID
                     f.write(f"{atom['id']} {mol_id} {atom['type']} {atom['charge']:.6f} ")
                     f.write(f"{atom['x']:.6f} {atom['y']:.6f} {atom['z']:.6f}\n")
                 f.write("\n")
