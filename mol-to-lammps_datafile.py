@@ -340,11 +340,12 @@ class MOLToLAMMPS:
                     f.write(f"{type_id} {mass:.3f}  # {element}\n")
                 f.write("\n")
                 
-                # Atoms section - OVITO compatible atomic style
-                f.write("Atoms  # atomic\n\n")
+                # Atoms section - full style
+                f.write("Atoms  # full\n\n")
                 for atom in self.atoms:
-                    # Format: atom-ID atom-type x y z
-                    f.write(f"{atom['id']} {atom['type']} ")
+                    # Format: atom-ID molecule-ID atom-type charge x y z
+                    mol_id = 1  # Default molecule ID (can be modified if needed)
+                    f.write(f"{atom['id']} {mol_id} {atom['type']} {atom['charge']:.6f} ")
                     f.write(f"{atom['x']:.6f} {atom['y']:.6f} {atom['z']:.6f}\n")
                 f.write("\n")
                 
